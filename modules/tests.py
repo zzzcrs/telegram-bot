@@ -1,26 +1,28 @@
-# modules/tests.py
-from db import connect
-from datetime import datetime
+import sqlite3
 
-def add_test(subject: str, test_date: str, desc: str):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO tests (subject, test_date, description) VALUES (?, ?, ?)",
-                (subject, test_date, desc))
-    conn.commit()
-    conn.close()
+DB_PATH = "bot_db.sqlite"
+
+def init():
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS tests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT,
+            date TEXT,
+            description TEXT
+        )
+        """)
+        conn.commit()
+
+def add_test(subject, date, description):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO tests (subject, date, description) VALUES (?, ?, ?)", (subject, date, description))
+        conn.commit()
 
 def get_tests():
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("SELECT subject, test_date, description FROM tests ORDER BY test_date")
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-def delete_test(test_id: int):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM tests WHERE id=?", (test_id,))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT subject, date, description FROM tests ORDER BY date")
+        return cur.fetchall()

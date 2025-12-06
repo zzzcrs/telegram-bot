@@ -1,34 +1,43 @@
-# modules/marks.py
-from db import connect
-from datetime import datetime
+import sqlite3
 
-def add_mark(user_id: int, subject: str, mark: int):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO marks (user_id, subject, mark, date_added) VALUES (?, ?, ?, ?)",
-                (user_id, subject, mark, datetime.now().isoformat()))
-    conn.commit()
-    conn.close()
+DB_PATH = "bot_db.sqlite"
 
-def get_marks(user_id: int):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("SELECT subject, mark FROM marks WHERE user_id = ? ORDER BY subject", (user_id,))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+def init():
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS marks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            subject TEXT,
+            mark INTEGER
+        )
+        """)
+        conn.commit()
 
-def get_avg(user_id: int, subject: str):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("SELECT AVG(mark) FROM marks WHERE user_id = ? AND subject = ?", (user_id, subject))
-    avg = cur.fetchone()[0]
-    conn.close()
-    return avg
+def add_mark(user_id, subject, mark):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO marks (user_id, subject, mark) VALUES (?, ?, ?)", (user_id, subject, mark))
+        conn.commit()
 
-def clear_marks(user_id: int):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM marks WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
+def get_marks(user_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT subject, mark FROM marks WHERE user_id=?", (user_id,))
+        return cur.fetchall()
+
+def get_avg(user_id, subject):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT mark FROM marks WHERE user_id=? AND subject=?", (user_id, subject))
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+        return sum(r[0] for r in rows)/len(rows)
+
+def clear_marks(user_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM marks WHERE user_id=?", (user_id,))
+        conn.commit()

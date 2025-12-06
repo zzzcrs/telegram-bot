@@ -1,14 +1,7 @@
-# bot.py
 import re
 from datetime import datetime, timedelta
-from telegram import (
-    Update, ReplyKeyboardMarkup, InlineKeyboardButton,
-    InlineKeyboardMarkup, InputFile
-)
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, filters,
-    ContextTypes, CallbackQueryHandler
-)
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
 from db import init_db, add_user, log_action
 from modules.schedule import get_day_schedule, get_week_schedule, add_schedule_entry
@@ -20,7 +13,6 @@ from utils.scheduler import daily_morning_job
 
 TOKEN = '8292924282:AAFXPnq5d8cLviX4ZNQuyRgm3y-RRCLN2ZM'
 
-# ---------------- Reply keyboard ----------------
 menu_keyboard = [
     ["📅 Сегодня", "📅 Завтра"],
     ["📂 Домашка", "🧪 Контрольные"],
@@ -28,7 +20,8 @@ menu_keyboard = [
 ]
 markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
 
-# ---------------- Helpers ----------------
+USER_STATE = {}
+
 def parse_date_like(text: str):
     text = text.strip().lower()
     if text in ("сегодня", "today"):
@@ -44,10 +37,7 @@ def parse_date_like(text: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_user(user.id, user.username)
-    await update.message.reply_text(
-        "Привет! Я школьный помощник. Выбери действие или напиши команду.",
-        reply_markup=markup
-    )
+    await update.message.reply_text("Привет! Я школьный помощник. Выбери действие или напиши команду.", reply_markup=markup)
     log_action(user.id, "start")
 
 async def help_cmd(update: Update, context):
@@ -56,7 +46,7 @@ async def help_cmd(update: Update, context):
         "/today - расписание на сегодня\n"
         "/tomorrow - расписание на завтра\n"
         "/hw [предмет] - показать домашку\n"
-        "/add_hw <предмет> <дата?> <текст> - добавить домашку\n"
+        "/add_hw <предмет> <текст> - добавить домашку\n"
         "/add_mark <предмет> <оценка> - добавить оценку\n"
         "/my_marks - показать оценки\n"
         "/export - выгрузить данные в txt\n"
@@ -105,18 +95,32 @@ async def show_hw_cmd(update: Update, context):
         return
     msg = "📚 Домашние задания:\n"
     for subj, text, due_date, added in rows:
-        msg += f"• {subj} — {text} (срок {due_date})\n"
+        msg += f"• {subj} — {text}\n"
     await update.message.reply_text(msg)
 
-# ---------------- User dialog state ----------------
-USER_STATE = {}
+async def show_marks(update: Update, context):
+    uid = update.message.from_user.id
+    rows = db_get_marks(uid)
+    if not rows:
+        await update.message.reply_text("Оценок нет.")
+        return
+    msg = "⭐ Мои оценки:\n"
+    subjects = {}
+    for subj, mark in rows:
+        subjects.setdefault(subj, []).append(str(mark))
+    for s, m_list in subjects.items():
+        avg = db_get_avg(update.message.from_user.id, s)
+        msg += f"{s}: {' '.join(m_list)} (ср. {avg:.2f})\n"
+    # общий средний
+    total_avg = sum([sum(map(int, marks)) for marks in subjects.values()]) / sum([len(marks) for marks in subjects.values()])
+    msg += f"\nОбщий средний: {total_avg:.2f}"
+    await update.message.reply_text(msg)
 
-# ---------------- Callback query handler ----------------
+# ---------------- Callback ----------------
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-
     if query.data == "add_hw":
         USER_STATE[user_id] = {"flow": "add_hw", "step": 1}
         await query.edit_message_text("📝 Добавление домашки.\nУкажи предмет:")
@@ -126,27 +130,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "add_test":
         USER_STATE[user_id] = {"flow": "add_test", "step": 1}
         await query.edit_message_text("🧪 Добавление контрольной.\nУкажи предмет:")
-    elif query.data == "export":
-        # вызываем экспорт
-        await export_cmd(update, context)
-    elif query.data == "clear_marks":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Да, удалить все", callback_data="confirm_clear")],
-            [InlineKeyboardButton("Отмена", callback_data="cancel")]
-        ])
-        await query.edit_message_text("Уверен(а)? Это удалит ВСЕ твои оценки.", reply_markup=kb)
-    elif query.data == "confirm_clear":
-        db_clear_marks(user_id)
-        await query.edit_message_text("Все оценки удалены.")
-    elif query.data == "cancel":
-        await query.edit_message_text("Отмена.")
 
-# ---------------- Dialog text handler ----------------
+# ---------------- Dialog text ----------------
 async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     text = update.message.text.strip()
 
-    # --------- ReplyKeyboard buttons ----------
+    # кнопки
     if text == "📅 Сегодня":
         await show_today(update, context)
         return
@@ -162,60 +152,31 @@ async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(msg)
         return
     elif text == "⭐ Мои оценки":
-        rows = db_get_marks(uid)
-        msg = "⭐ Мои оценки:\n" + "\n".join([f"{s} — {m}" for s,m in rows]) if rows else "Оценок нет."
-        await update.message.reply_text(msg)
+        await show_marks(update, context)
         return
     elif text == "➕ Добавить":
         await add_menu(update, context)
         return
-    elif text == "⚙️ Экспорт/Очистка":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Экспорт", callback_data="export")],
-            [InlineKeyboardButton("Очистить оценки", callback_data="clear_marks")]
-        ])
-        await update.message.reply_text("Выберите действие:", reply_markup=kb)
-        return
 
-    # --------- Dialog flows ----------
     state = USER_STATE.get(uid)
     if state:
         flow = state["flow"]
         step = state["step"]
-
         if flow == "add_hw":
             if step == 1:
                 state["subject"] = text.lower()
                 state["step"] = 2
-                await update.message.reply_text("Укажи дату (YYYY-MM-DD) или 'сегодня'/'завтра' (можно пропустить):")
-                return
+                await update.message.reply_text("Теперь напиши текст задания:")
             elif step == 2:
-                maybe_date = parse_date_like(text)
-                if maybe_date:
-                    state["due_date"] = maybe_date
-                    state["step"] = 3
-                    await update.message.reply_text("Теперь напиши текст задания:")
-                    return
-                else:
-                    state["due_date"] = datetime.now().date().isoformat()
-                    state["text"] = text
-                    db_add_hw(state["subject"], state["text"], state["due_date"])
-                    del USER_STATE[uid]
-                    await update.message.reply_text(f"Добавлено: {state['subject']} — {state['text']} (срок {state['due_date']})")
-                    return
-            elif step == 3:
                 state["text"] = text
-                db_add_hw(state["subject"], state["text"], state.get("due_date"))
+                db_add_hw(state["subject"], state["text"])
                 del USER_STATE[uid]
-                await update.message.reply_text(f"Добавлено: {state['subject']} — {state['text']} (срок {state.get('due_date')})")
-                return
-
+                await update.message.reply_text(f"Добавлено: {state['subject']} — {state['text']}")
         elif flow == "add_mark":
             if step == 1:
                 state["subject"] = text.lower()
                 state["step"] = 2
                 await update.message.reply_text("Укажи оценку (1-5):")
-                return
             elif step == 2:
                 try:
                     mark = int(text)
@@ -227,40 +188,30 @@ async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                 db_add_mark(uid, state["subject"], mark)
                 del USER_STATE[uid]
                 await update.message.reply_text(f"Оценка {mark} по {state['subject']} добавлена.")
-                return
-
         elif flow == "add_test":
             if step == 1:
                 state["subject"] = text.lower()
                 state["step"] = 2
-                await update.message.reply_text("Укажи дату теста (YYYY-MM-DD) или 'завтра':")
-                return
+                await update.message.reply_text("Укажи дату теста (YYYY-MM-DD или 'завтра'):")
             elif step == 2:
                 dd = parse_date_like(text)
                 if not dd:
-                    await update.message.reply_text("Неверная дата. Попробуй ещё раз (YYYY-MM-DD или 'завтра'):")
+                    await update.message.reply_text("Неверная дата. Попробуй ещё раз:")
                     return
                 state["date"] = dd
                 state["step"] = 3
                 await update.message.reply_text("Краткое описание теста:")
-                return
             elif step == 3:
                 desc = text
                 db_add_test(state["subject"], state["date"], desc)
                 del USER_STATE[uid]
                 await update.message.reply_text(f"Контрольная по {state['subject']} запланирована на {state['date']}.")
-                return
 
-        return
-
-    # --------- Simple NLU fallback ----------
+    # простая NLU
     await simple_nlu_handler(update, context)
 
-# ---------------- Simple NLU ----------------
 async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower().strip()
-
-    # add mark quick
     m = re.search(r"(?:добавь|поставь)?\s*(?:оценку\s*)?(?:по\s*)?(?P<subject>\w+)\s*(?P<mark>[1-5])$", text)
     if m:
         subj = m.group("subject")
@@ -268,64 +219,40 @@ async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         db_add_mark(update.message.from_user.id, subj, mark)
         await update.message.reply_text(f"Оценка {mark} по {subj} добавлена.")
         return
-
-    # add hw quick
     m = re.match(r"(?:добавь|поставь)\s+домашк(?:у|а)\s+(?:по\s+)?(?P<subject>\w+)\s+(?P<text>.+)", text)
     if m:
         subj = m.group("subject")
         body = m.group("text")
-        db_add_hw(subj, body, None)
+        db_add_hw(subj, body)
         await update.message.reply_text(f"Домашка по {subj} добавлена: {body}")
         return
 
-    # show hw
-    m = re.match(r"(?:какая|покажи|что задано)\s+домашк(?:а|у)(?:\s+по\s+)?(?P<subject>\w+)", text)
-    if m:
-        subj = m.group("subject")
-        rows = db_get_hw(subj)
-        if not rows:
-            await update.message.reply_text("Домашки нет.")
-            return
-        msg = ""
-        for s, tx, due, added in rows:
-            msg += f"{s} — {tx} (срок {due})\n"
-        await update.message.reply_text(msg)
-        return
-
-    # show schedule
-    if text in ("что сегодня", "расписание сегодня", "покажи расписание"):
-        await show_today(update, context)
-        return
-    if text in ("что завтра", "расписание завтра"):
-        await show_tomorrow(update, context)
-        return
-
-    await update.message.reply_text("Не понял. Попробуй кнопки меню или /help.")
-
 # ---------------- Export ----------------
 async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lines = []
-    lines.append("== Домашка ==")
+    lines = ["== Домашка =="]
     for s, txt, due, added in db_get_hw():
-        lines.append(f"{s} | {due} | {txt}")
+        lines.append(f"{s} | {txt}")
     lines.append("\n== Контрольные ==")
     for s, date, desc in db_get_tests():
         lines.append(f"{s} | {date} | {desc}")
-    lines.append("\n== Оценки (по тебе) ==")
-    rows = db_get_marks(update.message.from_user.id)
-    for s, mark in rows:
-        lines.append(f"{s} | {mark}")
+    lines.append("\n== Оценки ==")
+    uid = update.message.from_user.id
+    rows = db_get_marks(uid)
+    subjects = {}
+    for s, m in rows:
+        subjects.setdefault(s, []).append(str(m))
+    for s, m_list in subjects.items():
+        avg = db_get_avg(uid, s)
+        lines.append(f"{s}: {' '.join(m_list)} (ср. {avg:.2f})")
     content = "\n".join(lines)
     with open("export.txt", "w", encoding="utf-8") as f:
         f.write(content)
     await update.message.reply_document(InputFile("export.txt"))
 
-# ---------------- Setup & Run ----------------
+# ---------------- Setup ----------------
 def main():
     init_db()
     app = ApplicationBuilder().token(TOKEN).build()
-
-    # commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("today", show_today))
@@ -333,16 +260,9 @@ def main():
     app.add_handler(CommandHandler("hw", show_hw_cmd))
     app.add_handler(CommandHandler("add", add_menu))
     app.add_handler(CommandHandler("export", export_cmd))
-
-    # callback queries
     app.add_handler(CallbackQueryHandler(on_callback))
-
-    # messages (ReplyKeyboard + dialog + NLU)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, dialog_text_handler))
-
-    # morning job at 08:00
     app.job_queue.run_daily(daily_morning_job, time=datetime.strptime("08:00", "%H:%M").time())
-
     app.run_polling()
 
 if __name__ == "__main__":
