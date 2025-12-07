@@ -545,7 +545,6 @@ async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
 
-
 # ---------------- Export ----------------
 async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id

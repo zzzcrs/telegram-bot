@@ -1,10 +1,12 @@
-import pandas as pd
-from modules.marks import get_marks as db_get_marks
-from modules.homework import get_hw as db_get_hw
-from modules.tests import get_tests as db_get_tests
-from telegram import InputFile
 import io
 from datetime import datetime
+
+import pandas as pd
+from telegram import InputFile
+
+from modules.homework import get_hw as db_get_hw
+from modules.marks import get_marks as db_get_marks
+from modules.tests import get_tests as db_get_tests
 
 
 async def export_excel(update, context):

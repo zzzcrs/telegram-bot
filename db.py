@@ -4,8 +4,10 @@ from typing import Optional
 
 DB_PATH = "school.db"
 
+
 def connect():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
+
 
 def init_db():
     conn = connect()
@@ -89,12 +91,14 @@ def init_db():
     conn.close()
     print("✅ База данных инициализирована")
 
+
 def add_user(user_id: int, username: Optional[str]):
     conn = connect()
     cur = conn.cursor()
     cur.execute("INSERT OR IGNORE INTO users (id, username) VALUES (?,?)", (user_id, username))
     conn.commit()
     conn.close()
+
 
 def log_action(user_id, action):
     conn = connect()
@@ -103,6 +107,7 @@ def log_action(user_id, action):
                 (user_id, action, datetime.now().isoformat()))
     conn.commit()
     conn.close()
+
 
 def get_all_users():
     """Получить всех пользователей"""

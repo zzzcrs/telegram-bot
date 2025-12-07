@@ -1,5 +1,7 @@
-from db import connect
 from datetime import datetime
+
+from db import connect
+
 
 def add_announce(text: str):
     """Добавить объявление"""
@@ -10,6 +12,7 @@ def add_announce(text: str):
     conn.commit()
     conn.close()
 
+
 def get_all_announcements(limit: int = 20):
     """Получить все объявления"""
     conn = connect()
@@ -18,6 +21,7 @@ def get_all_announcements(limit: int = 20):
     rows = cur.fetchall()
     conn.close()
     return rows
+
 
 def get_recent_announcements(days: int = 7):
     """Получить свежие объявления за последние дни"""

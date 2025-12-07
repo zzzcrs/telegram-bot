@@ -1,5 +1,6 @@
 from db import connect
 
+
 def add_schedule_entry(weekday, number, subject, room):
     conn = connect()
     cur = conn.cursor()
@@ -7,6 +8,7 @@ def add_schedule_entry(weekday, number, subject, room):
                 (weekday, number, subject, room))
     conn.commit()
     conn.close()
+
 
 def get_day_schedule(weekday):
     conn = connect()
@@ -16,6 +18,7 @@ def get_day_schedule(weekday):
     conn.close()
     return rows
 
+
 def get_week_schedule():
     conn = connect()
     cur = conn.cursor()
@@ -23,6 +26,7 @@ def get_week_schedule():
     rows = cur.fetchall()
     conn.close()
     return rows
+
 
 def delete_schedule(weekday=None, lesson_number=None):
     """Удалить расписание"""

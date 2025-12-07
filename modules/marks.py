@@ -1,5 +1,6 @@
-from db import connect
 from datetime import datetime
+
+from db import connect
 
 
 def add_mark(user_id: int, subject: str, mark: int):

@@ -1,5 +1,6 @@
-from db import connect
 from datetime import datetime
+
+from db import connect
 
 
 def add_hw(subject: str, text: str, user_id: int, due_date: str = None):

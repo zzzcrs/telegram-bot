@@ -1,7 +1,9 @@
-import openpyxl
 import os
-import tempfile
 import shutil
+import tempfile
+
+import openpyxl
+
 from modules.marks import add_mark as db_add_mark
 
 

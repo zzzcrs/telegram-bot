@@ -1,8 +1,9 @@
-from modules.tests import get_tests
-from modules.schedule import get_day_schedule
-from modules.homework import get_hw_by_date
+from datetime import datetime
+
 from db import get_all_users
-from datetime import datetime, timedelta
+from modules.homework import get_hw_by_date
+from modules.schedule import get_day_schedule
+from modules.tests import get_tests
 
 
 async def daily_morning_job(context):
