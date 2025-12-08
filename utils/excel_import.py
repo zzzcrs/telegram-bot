@@ -66,21 +66,17 @@ async def handle_path_file(update, context, user_id):
 
 
 async def process_excel_file_ultra_simple(file_path, user_id):
-    """УЛЬТРА-ПРОСТОЙ импорт: 1 колонка = предмет, остальные колонки = оценки"""
     try:
         wb = openpyxl.load_workbook(file_path, data_only=True)
         sheet = wb.active
 
         added = 0
         report_lines = []
-        imported_subjects = set()  # Для отслеживания уже импортированных предметов
-
-        # Проходим по всем строкам (начиная со второй, чтобы пропустить возможные заголовки)
+        imported_subjects = set()  
         start_row = 2 if str(sheet.cell(row=1, column=1).value).lower() in ['предмет', 'дисциплина', 'название',
                                                                             ''] else 1
 
         for row_idx in range(start_row, sheet.max_row + 1):
-            # Получаем значение первой колонки (предмет)
             subject_cell = sheet.cell(row=row_idx, column=1).value
 
             if not subject_cell:
@@ -88,14 +84,11 @@ async def process_excel_file_ultra_simple(file_path, user_id):
 
             subject = str(subject_cell).strip()
 
-            # Пропускаем пустые названия
             if not subject or subject.lower() in ['предмет', 'дисциплина', 'название']:
                 continue
 
-            # Приводим к нижнему регистру
             subject_lower = subject.lower()
 
-            # Проверяем, не импортировали ли мы уже этот предмет
             if subject_lower in imported_subjects:
                 continue
 
@@ -103,25 +96,20 @@ async def process_excel_file_ultra_simple(file_path, user_id):
 
             grades_found = []
 
-            # Ищем оценки во ВСЕХ остальных колонках
             for col_idx in range(2, sheet.max_column + 1):
                 grade_cell = sheet.cell(row=row_idx, column=col_idx).value
 
                 if grade_cell is None:
                     continue
 
-                # Пытаемся извлечь оценку
                 try:
-                    # Если это число
                     if isinstance(grade_cell, (int, float)):
                         grade = int(grade_cell)
                         if 2 <= grade <= 5:
                             grades_found.append(grade)
 
-                    # Если это строка
                     elif isinstance(grade_cell, str):
                         import re
-                        # Ищем все оценки 2-5 в строке
                         numbers = re.findall(r'[2-5]', str(grade_cell))
                         for num_str in numbers:
                             grade = int(num_str)
@@ -131,13 +119,11 @@ async def process_excel_file_ultra_simple(file_path, user_id):
                 except:
                     continue
 
-            # Добавляем найденные оценки в базу
             if grades_found:
                 for grade in grades_found:
                     db_add_mark(user_id, subject_lower, grade)
                     added += 1
 
-                # Формируем строку отчета
                 grade_counts = {}
                 for grade in grades_found:
                     grade_counts[grade] = grade_counts.get(grade, 0) + 1
