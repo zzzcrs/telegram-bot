@@ -21,12 +21,12 @@ from utils.excel_import import import_marks_from_excel
 from utils.export_excel import export_excel
 from utils.scheduler import daily_morning_job
 
-TOKEN = '8292924282:AAFXPnq5d8cLviX4ZNQuyRgm3y-RRCLN2ZM'  # Замените на ваш токен!
+TOKEN = '8292924282:AAFXPnq5d8cLviX4ZNQuyRgm3y-RRCLN2ZM' 
 
 # ---------------- Reply keyboard ----------------
 menu_keyboard = [
     ["📅 Сегодня", "📅 Завтра"],
-    ["📂 Домашка", "🧪 Контрольные"],
+    ["📂 Домашняя работа", "🧪 Контрольные"],
     ["⭐ Мои оценки", "➕ Добавить"],
     ["📢 Объявления", "⚙️ Экспорт/Очистка"],
     ["❓ Помощь"]
@@ -34,7 +34,6 @@ menu_keyboard = [
 markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
 
 
-# ---------------- Helpers ----------------
 def parse_date_like(text: str):
     text = text.strip().lower()
     if text in ("сегодня", "today", "сейчас"):
@@ -44,7 +43,6 @@ def parse_date_like(text: str):
     if text in ("послезавтра", "day after tomorrow"):
         return (datetime.now().date() + timedelta(days=2)).isoformat()
 
-    # Пробуем разные форматы дат
     date_formats = ["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%d.%m", "%d/%m"]
     for fmt in date_formats:
         try:
@@ -57,7 +55,7 @@ def parse_date_like(text: str):
     return None
 
 
-# ---------------- Commands ----------------
+# ---------------- Команды ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_user(user.id, user.username)
@@ -159,7 +157,7 @@ async def announce(update: Update, context):
     await update.message.reply_text(f"✅ Объявление отправлено {count} пользователям!")
 
 
-# ---------------- Inline Add Menu ----------------
+# ---------------- Инлайн меню ----------------
 def add_menu_keyboard():
     buttons = [
         [InlineKeyboardButton("📝 Добавить домашку", callback_data="add_hw")],
@@ -174,7 +172,7 @@ async def add_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Что добавить?", reply_markup=add_menu_keyboard())
 
 
-# ---------------- Show schedule & homework ----------------
+# ---------------- ПОказ расписания и дз ----------------
 async def show_today(update: Update, context):
     weekday = datetime.now().weekday()
     lessons = get_day_schedule(weekday)
@@ -238,11 +236,10 @@ async def show_hw_cmd(update: Update, context):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 
-# ---------------- User dialog state ----------------
 USER_STATE = {}
 
 
-# ---------------- Callback query handler ----------------
+# ---------------- сallback ----------------
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -294,12 +291,11 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg, parse_mode='Markdown')
 
 
-# ---------------- Dialog text handler ----------------
 async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     text = update.message.text.strip()
 
-    # --------- ReplyKeyboard buttons ----------
+    # --------- кнопки ----------
     if text == "📅 Сегодня":
         await show_today(update, context)
         return
@@ -368,7 +364,7 @@ async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("⚙️ *Управление данными:*", reply_markup=kb, parse_mode='Markdown')
         return
 
-    # --------- Dialog flows ----------
+    # --------- диалоги ----------
     state = USER_STATE.get(uid)
     if state:
         flow = state["flow"]
@@ -517,16 +513,14 @@ async def dialog_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         return
 
-    # --------- Simple NLU fallback ----------
     await simple_nlu_handler(update, context)
 
 
-# ---------------- Simple NLU ----------------
+# ---------------- NLU ----------------
 async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower().strip()
     uid = update.message.from_user.id
 
-    # add mark quick
     m = re.search(r"(?:добавь|поставь|оценка)\s*(?:по\s*)?(?P<subject>\w+)\s+(?P<mark>[1-5])", text)
     if m:
         subj = m.group("subject")
@@ -535,7 +529,6 @@ async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"✅ Оценка {mark} по {subj} добавлена.")
         return
 
-    # add hw quick
     m = re.match(r"(?:добавь|добавить)\s+домашк(?:у|а)\s+(?:по\s+)?(?P<subject>\w+)\s+(?P<text>.+)", text)
     if m:
         subj = m.group("subject")
@@ -545,7 +538,7 @@ async def simple_nlu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
 
-# ---------------- Export ----------------
+# ---------------- экспорт ----------------
 async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     lines = []
@@ -610,7 +603,7 @@ async def export_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await export_excel_func(update, context)
 
 
-# ---------------- Import from Excel ----------------
+# ---------------- импорт из Excel ----------------
 async def import_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Импорт оценок из Excel файла"""
     if update.message.document:
@@ -636,7 +629,6 @@ async def import_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-# ---------------- Setup & Run ----------------
 def main():
     init_db()
     app = ApplicationBuilder().token(TOKEN).build()
@@ -675,10 +667,8 @@ def main():
 
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка отправленных файлов"""
     document = update.message.document
 
-    # Проверяем, что это Excel файл
     if document.file_name.endswith(('.xlsx', '.xls')):
         await update.message.reply_text("📤 Получен Excel файл. Импортирую оценки...")
         await import_marks_from_excel(update, context)
